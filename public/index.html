@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Upload CSR</title>
+  <!-- React and Babel CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    function UploadForm() {
+      const [certificateName, setCertificateName] = React.useState('');
+      const [fileText, setFileText] = React.useState('');
+
+      const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => setFileText(event.target.result);
+        reader.readAsText(file);
+      };
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!certificateName || !fileText) {
+          alert('Please provide certificate name and file.');
+          return;
+        }
+        const res = await fetch('/submit', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ certificateName, csr: fileText }),
+        });
+        const message = await res.text();
+        alert(message);
+      };
+
+      return (
+        <form onSubmit={handleSubmit}>
+            <h1>Get your certificate request signed here!</h1>
+          <div>
+            <label>Add your CSR file</label><br />
+            <input type="file" accept=".csr" onChange={handleFileChange} required />
+          </div>
+          <div>
+            <label>Choose your certificate-name</label><br />
+            <input
+              type="text"
+              value={certificateName}
+              onChange={e => setCertificateName(e.target.value)}
+              required
+            />
+          </div>
+          <button type="submit">Submit</button>
+        </form>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<UploadForm />);
+  </script>
+</body>
+</html>
