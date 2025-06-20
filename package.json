@@ -1,17 +1,25 @@
 {
   "name": "ca_nettside",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-"scripts": {
-  "start": "node index.js"
-},
+  "main": "./src/server.ts",
+  "scripts": {
+    "start": "ts-node ./src/server.ts"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "express": "^5.1.0",
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2",
     "firebase": "^11.9.1",
-    "firebase-admin": "^13.4.0"
+    "firebase-admin": "^13.4.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.23",
+    "@types/node": "^24.0.3",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
   }
 }
