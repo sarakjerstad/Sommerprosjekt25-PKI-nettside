@@ -56,6 +56,8 @@ Download your Firebase service account JSON file from the Firebase Console and p
 
 serviceAccountKey.json
 
+Can be dowloaded by going to the firebase website, clicking the wheel next to "Project Overview" -> "Service Accounts" -> "Generate new private key". Rename the key "serviceAccountKey.json" and place it in the base folder.
+
 Make sure the path matches the import statement in src/firebase.ts.
 # 5. Running the server
 
