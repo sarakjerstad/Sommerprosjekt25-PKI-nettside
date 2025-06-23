@@ -26,24 +26,36 @@
       reader.readAsText(file);
     };
 
-    const handleSubmit = async (e) => {
-      e.preventDefault();
-      if (!certificateName || !fileText) {
-        alert('Please provide certificate name and file.');
-        return;
-      }
-      const res = await fetch('/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ certificateName, csr: fileText }),
-      });
-      const message = await res.text();
-      setSuccessMessage(message);
-    };
+const [docId, setDocId] = React.useState(null);
 
-    const handleRedirect = () => {
-      window.location.href = "/downloadcerts";
-    };
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  if (!certificateName || !fileText) {
+    alert('Please provide certificate name and file.');
+    return;
+  }
+
+  const res = await fetch('/submit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ certificateName, csr: fileText }),
+  });
+
+  if (res.ok) {
+    const data = await res.json();
+    setSuccessMessage(data.message);
+    setDocId(data.id); // Save the document ID
+  } else {
+    const errorText = await res.text();
+    alert('Submission failed: ' + errorText);
+  }
+};
+
+const handleRedirect = () => {
+  if (docId) {
+    window.location.href = `/downloadcerts/${docId}`;
+  }
+};
 
     return (
       <div>

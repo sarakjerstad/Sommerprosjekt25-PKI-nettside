@@ -11,6 +11,10 @@
   <div id="root"></div>
 
   <script type="text/babel">
+
+    const docId = window.location.pathname.split('/').pop();
+
+
     function DownloadButton() {
       const handleDownload = async () => {
         const res = await fetch('/download');
@@ -36,6 +40,7 @@
         <div>
           <button onClick={handleRedirect}>Return</button>
           <h1>Download Root CA Certificate</h1>
+          <p>Your certificate ID: {docId}</p>
            <button onClick={handleDownload}>Download Certificate</button>
         </div>
       );
