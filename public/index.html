@@ -11,58 +11,74 @@
 <body>
   <div id="root"></div>
 
-  <script type="text/babel">
-    function UploadForm() {
-      const [certificateName, setCertificateName] = React.useState('');
-      const [fileText, setFileText] = React.useState('');
+ <script type="text/babel">
+  function UploadForm() {
+    const [certificateName, setCertificateName] = React.useState('');
+    const [fileText, setFileText] = React.useState('');
+    const [successMessage, setSuccessMessage] = React.useState('');
 
-      const handleFileChange = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+    const handleFileChange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
 
-        const reader = new FileReader();
-        reader.onload = (event) => setFileText(event.target.result);
-        reader.readAsText(file);
-      };
+      const reader = new FileReader();
+      reader.onload = (event) => setFileText(event.target.result);
+      reader.readAsText(file);
+    };
 
-      const handleSubmit = async (e) => {
-        e.preventDefault();
-        if (!certificateName || !fileText) {
-          alert('Please provide certificate name and file.');
-          return;
-        }
-        const res = await fetch('/submit', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ certificateName, csr: fileText }),
-        });
-        const message = await res.text();
-        alert(message);
-      };
+    const handleSubmit = async (e) => {
+      e.preventDefault();
+      if (!certificateName || !fileText) {
+        alert('Please provide certificate name and file.');
+        return;
+      }
+      const res = await fetch('/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ certificateName, csr: fileText }),
+      });
+      const message = await res.text();
+      setSuccessMessage(message);
+    };
 
-      return (
-        <form onSubmit={handleSubmit}>
-            <h1>Get your certificate request signed here!</h1>
-            <a href="/downloadcerts">Laste ned CA sert</a>
-          <div>
-            <label>Add your CSR file</label><br />
-            <input type="file" accept=".csr" onChange={handleFileChange} required />
+    const handleRedirect = () => {
+      window.location.href = "/downloadcerts";
+    };
+
+    return (
+      <div>
+        <h1>Get your certificate request signed here!</h1>
+        <a href="/downloadcerts">Laste ned CA sert</a>
+
+        {successMessage ? (
+          <div style={{ padding: '20px', border: '2px solid green', marginTop: '20px' }}>
+            <p>{successMessage}</p>
+            <button onClick={handleRedirect}>Take me to download</button>
           </div>
-          <div>
-            <label>Choose your certificate-name</label><br />
-            <input
-              type="text"
-              value={certificateName}
-              onChange={e => setCertificateName(e.target.value)}
-              required
-            />
-          </div>
-          <button type="submit">Submit</button>
-        </form>
-      );
-    }
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <div>
+              <label>Add your CSR file</label><br />
+              <input type="file" accept=".csr" onChange={handleFileChange} required />
+            </div>
+            <div>
+              <label>Choose your certificate-name</label><br />
+              <input
+                type="text"
+                value={certificateName}
+                onChange={e => setCertificateName(e.target.value)}
+                required
+              />
+            </div>
+            <button type="submit">Submit</button>
+          </form>
+        )}
+      </div>
+    );
+  }
 
-    ReactDOM.createRoot(document.getElementById('root')).render(<UploadForm />);
-  </script>
+  ReactDOM.createRoot(document.getElementById('root')).render(<UploadForm />);
+</script>
+
 </body>
 </html>

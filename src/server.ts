@@ -59,8 +59,6 @@ app.post('/submit', async (req, res) => {
   }
 });
 
-
-
 // Lager statisk sti til CAcerten
 const certPath = path.join(__dirname, '..', 'CAcert', 'rootCA1.crt');
 
