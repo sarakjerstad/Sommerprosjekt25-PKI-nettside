@@ -22,6 +22,10 @@ app.get('/downloadcerts', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'downloadcerts.html'));
 });
 
+app.get('/downloadcerts/:id', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'downloadcerts.html'));
+});
+
 // Behandler opplastninger til firebase
 app.post('/submit', async (req, res) => {
   const { certificateName, csr } = req.body;
@@ -39,7 +43,7 @@ app.post('/submit', async (req, res) => {
     });
 
     const docId = docRef.id;
-    res.send(`Certificate saved successfully with ID: ${docId}`);
+    res.json({ message: 'Certificate saved successfully', id: docId });
 
     // Run your bash script, pass docId as argument
   execFile('sudo', ['/bin/bash', '/home/tsvuser/bashScripts/GPTscript.sh', docId], (error, stdout, stderr) => {
@@ -58,8 +62,6 @@ app.post('/submit', async (req, res) => {
     res.status(500).send('Internal server error');
   }
 });
-
-
 
 // Lager statisk sti til CAcerten
 const certPath = path.join(__dirname, '..', 'CAcert', 'rootCA1.crt');
