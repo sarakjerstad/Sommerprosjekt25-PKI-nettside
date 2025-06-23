@@ -28,8 +28,13 @@
         URL.revokeObjectURL(url);
       };
 
+    const handleRedirect = () => {
+      window.location.href = "/";
+    };
+
       return (
         <div>
+          <button onClick={handleRedirect}>Return</button>
           <h1>Download Root CA Certificate</h1>
            <button onClick={handleDownload}>Download Certificate</button>
         </div>
