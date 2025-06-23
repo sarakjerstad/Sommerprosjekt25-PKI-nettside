@@ -26,6 +26,53 @@ app.get('/downloadcerts/:id', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'downloadcerts.html'));
 });
 
+app.get('/downloadcerts/:id/certificate', async (req, res) => {
+  const docId = req.params.id;
+
+  try {
+    const doc = await db.collection('certificate_requests').doc(docId).get();
+
+    if (!doc.exists) {
+      return res.status(404).send('Document not found');
+    }
+
+    const data = doc.data();
+    const certName = data?.certificateName;
+
+    if (!certName) {
+      return res.status(400).send('Certificate name missing from document');
+    }
+
+    const crtPath = path.join('/CA/newcerts', `${certName}.crt`);
+
+    if (!fs.existsSync(crtPath)) {
+      return res.status(404).send('Certificate file not found');
+    }
+
+    res.setHeader('Content-Disposition', `attachment; filename="${certName}.crt"`);
+    res.setHeader('Content-Type', 'application/x-x509-user-cert');
+
+    const fileStream = fs.createReadStream(crtPath);
+    fileStream.pipe(res);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Internal server error');
+  }
+});
+
+app.get('/download', (req, res) => {
+  if (!fs.existsSync(certPath)) {
+    return res.status(404).send('Certificate file not found');
+  }
+
+  res.setHeader('Content-Disposition', 'attachment; filename="rootCA1.crt"');
+  res.setHeader('Content-Type', 'application/x-x509-ca-cert');
+
+  const fileStream = fs.createReadStream(certPath);
+  fileStream.pipe(res);
+});
+
+
 // Behandler opplastninger til firebase
 app.post('/submit', async (req, res) => {
   const { certificateName, csr } = req.body;
@@ -64,7 +111,8 @@ app.post('/submit', async (req, res) => {
 });
 
 // Lager statisk sti til CAcerten
-const certPath = path.join(__dirname, '..', 'CAcert', 'rootCA1.crt');
+// const certPath = path.join(__dirname, '..', 'CAcert', 'rootCA1.crt');
+const certPath = path.join('/CA/certs', 'rootCA1.cert.pem');
 
 
 // Behandler nedlastning av CAcert (så langt)
