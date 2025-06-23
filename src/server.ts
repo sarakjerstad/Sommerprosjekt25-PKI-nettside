@@ -8,18 +8,20 @@ const port = 3000;
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
+//Lager statisk sti for CAcert direkotratet
 app.use('/certs', express.static(path.join(__dirname, '..', 'CAcert')));
 
+// Ruter bruker til hovedside via URL
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
-// Route to serve the download page
+// Ruter bruiker til nedlastingsside via URL
 app.get('/downloadcerts', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'downloadcerts.html'));
 });
 
-
+// Behandler opplastninger til firebase
 app.post('/submit', async (req, res) => {
   const { certificateName, csr } = req.body;
 
@@ -41,9 +43,11 @@ app.post('/submit', async (req, res) => {
   }
 });
 
-
+// Lager statisk sti til CAcerten
 const certPath = path.join(__dirname, '..', 'CAcert', 'rootCA1.crt');
 
+
+// Behandler nedlastning av CAcert (så langt)
 app.get('/download', (req, res) => {
   if (!fs.existsSync(certPath)) {
     return res.status(404).send('Certificate file not found');
