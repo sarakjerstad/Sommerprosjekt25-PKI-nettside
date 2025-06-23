@@ -28,16 +28,19 @@ app.post('/submit', async (req, res) => {
   }
 
   try {
-    await db.collection('certificate_requests').doc(certificateName).set({
+    const docRef = await db.collection('certificate_requests').add({
+      certificateName,
       csr,
-      timestamp: new Date() // or admin.firestore.FieldValue.serverTimestamp() if you import admin here
+      timestamp: new Date()
     });
-    res.send('Certificate saved successfully!');
+
+    res.send(`Certificate saved successfully`);
   } catch (err) {
     console.error(err);
     res.status(500).send('Internal server error');
   }
 });
+
 
 const certPath = path.join(__dirname, '..', 'CAcert', 'rootCA1.crt');
 
