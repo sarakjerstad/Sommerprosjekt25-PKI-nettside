@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import { db } from './firebase'; // Import Firestore instance
 import fs from 'fs';
+import { execFile } from 'child_process'; // Add this at the top
 
 const app = express();
 const port = 3000;
@@ -30,18 +31,35 @@ app.post('/submit', async (req, res) => {
   }
 
   try {
+    // Add document and get reference
     const docRef = await db.collection('certificate_requests').add({
       certificateName,
       csr,
       timestamp: new Date()
     });
 
-    res.send(`Certificate saved successfully`);
+    const docId = docRef.id;
+    res.send(`Certificate saved successfully with ID: ${docId}`);
+
+    // Run your bash script, pass docId as argument
+  execFile('sudo', ['/bin/bash', '/home/tsvuser/bashScripts/GPTscript.sh', docId], (error, stdout, stderr) => {
+      if (error) {
+        console.error(`Error executing bash script: ${error.message}`);
+        return;
+      }
+      if (stderr) {
+        console.error(`Script stderr: ${stderr}`);
+      }
+      console.log(`Script output: ${stdout}`);
+    });
+
   } catch (err) {
     console.error(err);
     res.status(500).send('Internal server error');
   }
 });
+
+
 
 // Lager statisk sti til CAcerten
 const certPath = path.join(__dirname, '..', 'CAcert', 'rootCA1.crt');
