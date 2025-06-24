@@ -12,14 +12,36 @@
 
   <script type="text/babel">
 
-    const docId = window.location.pathname.split('/').pop();
+    function DownloadPage() {
+      const [docId, setDocId] = React.useState(null);
 
+      React.useEffect(() => {
+        const id = window.location.pathname.split('/').pop();
+        setDocId(id);
+      }, []);
 
-    function DownloadButton() {
-      const handleDownload = async () => {
+      const downloadUserCert = async () => {
+        if (!docId) return;
+
+        const res = await fetch(`/downloadcerts/${docId}/certificate`);
+        if (!res.ok) {
+          alert('Failed to download signed certificate.');
+          return;
+        }
+
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${docId}.crt`;
+        a.click();
+        URL.revokeObjectURL(url);
+      };
+
+      const downloadCA = async () => {
         const res = await fetch('/download');
         if (!res.ok) {
-          alert('Failed to download certificate.');
+          alert('Failed to download CA certificate.');
           return;
         }
 
@@ -32,21 +54,21 @@
         URL.revokeObjectURL(url);
       };
 
-    const handleRedirect = () => {
-      window.location.href = "/";
-    };
 
       return (
         <div>
-          <button onClick={handleRedirect}>Return</button>
+          <button onClick={() => window.location.href = '/'}>Return</button>
           <h1>Download Root CA Certificate</h1>
           <p>Your certificate ID: {docId}</p>
-           <button onClick={handleDownload}>Download Certificate</button>
+          <button onClick={downloadUserCert}>Download Your Signed Certificate</button>
+          <br /><br />
+          <button onClick={downloadCA}>Download Root CA Certificate</button>
+          <br /><br />
         </div>
       );
     }
 
-    ReactDOM.createRoot(document.getElementById('root')).render(<DownloadButton />);
-  </script>
+    ReactDOM.createRoot(document.getElementById('root')).render(<DownloadPage />);  
+    </script>
 </body>
 </html>
