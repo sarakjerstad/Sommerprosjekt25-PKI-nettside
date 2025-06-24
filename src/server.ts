@@ -37,26 +37,43 @@ app.get('/downloadcerts/:id/certificate', async (req, res) => {
     }
 
     const data = doc.data();
-    const certName = data?.certificateName;
+    const certificateName = data?.certificateName;
 
-    if (!certName) {
+    if (!certificateName) {
       return res.status(400).send('Certificate name missing from document');
     }
 
-    const crtPath = path.join('/CA/newcerts', `${certName}.crt`);
-
+    const crtPath = path.join('/CA/newcerts', `${docId}.crt`);
     if (!fs.existsSync(crtPath)) {
-      return res.status(404).send(`No certificate found with ID: ${docId}`);
+      return res.status(404).send('Certificate not found on server');
     }
 
-    res.setHeader('Content-Disposition', `attachment; filename="${certName}.crt"`);
+    // 🛡️ Sanitize filename to avoid invalid characters
+    const safeCertName = certificateName.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+    // ✅ Set proper headers to force download with correct filename
+    res.setHeader('Content-Disposition', `attachment; filename="${safeCertName}.crt"`);
     res.setHeader('Content-Type', 'application/x-x509-user-cert');
 
+    // ✅ Stream the file
     const fileStream = fs.createReadStream(crtPath);
     fileStream.pipe(res);
   } catch (err) {
-    console.error(err);
+    console.error('Error downloading certificate:', err);
     res.status(500).send('Internal server error');
+  }
+});
+
+app.get('/api/certmeta/:id', async (req, res) => {
+  const docId = req.params.id;
+  try {
+    const doc = await db.collection('certificate_requests').doc(docId).get();
+    if (!doc.exists) return res.status(404).json({ error: 'Not found' });
+    const data = doc.data();
+    res.json({ certificateName: data?.certificateName });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch certificate metadata' });
   }
 });
 
