@@ -14,14 +14,28 @@
 
     function DownloadPage() {
       const [docId, setDocId] = React.useState(null);
+      const [certificateName, setCertificateName] = React.useState(null);
 
       React.useEffect(() => {
         const id = window.location.pathname.split('/').pop();
         setDocId(id);
+
+        // Fetch certificateName from backend
+        fetch(`/api/certmeta/${id}`)
+          .then((res) => res.json())
+          .then((data) => {
+            setCertificateName(data.certificateName);
+          })
+          .catch((err) => {
+            console.error("Failed to fetch certificate name:", err);
+          });
       }, []);
 
       const downloadUserCert = async () => {
-        if (!docId) return;
+        if (!docId || !certificateName) {
+          alert("Certificate info not loaded yet.");
+          return;
+        }
 
         const res = await fetch(`/downloadcerts/${docId}/certificate`);
         if (!res.ok) {
@@ -33,8 +47,10 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${docId}.crt`;
+        a.download = `${certificateName}.crt`; // ✅ Use the name from Firestore
+        document.body.appendChild(a);
         a.click();
+        document.body.removeChild(a);
         URL.revokeObjectURL(url);
       };
 
@@ -54,16 +70,17 @@
         URL.revokeObjectURL(url);
       };
 
-
       return (
         <div>
           <button onClick={() => window.location.href = '/'}>Return</button>
           <h1>Download Root CA Certificate</h1>
           <p>Your certificate ID: {docId}</p>
-          <button onClick={downloadUserCert}>Download Your Signed Certificate</button>
+          <p>Your chosen name: {certificateName || 'Loading...'}</p>
+          <button onClick={downloadUserCert} disabled={!certificateName}>
+            Download Your Signed Certificate
+          </button>
           <br /><br />
           <button onClick={downloadCA}>Download Root CA Certificate</button>
-          <br /><br />
         </div>
       );
     }
