@@ -13,6 +13,7 @@
 
  <script type="text/babel">
 function UploadForm() {
+  const [showHelp, setShowHelp] = React.useState(false);
   const [certificateName, setCertificateName] = React.useState('');
   const [fileText, setFileText] = React.useState('');
   const [loadingFile, setLoadingFile] = React.useState(false);
@@ -90,10 +91,6 @@ return (
   <div className="container">
     <div className="card">
       <h1 className="header">Get your certificate request signed here!</h1>
-      <a href="/downloadcerts" style={{display:'block', marginBottom: '1rem', textAlign: 'center', color: '#007bff', textDecoration: 'none'}}>
-        Download CA Certificate
-      </a>
-
       {successMessage ? (
         <div className="success-box">
           <p>{successMessage}</p>
@@ -121,6 +118,36 @@ return (
           </button>
         </form>
       )}
+      <div style={{ marginTop: '2rem' }}>
+      <button
+        className="btn"
+        onClick={() => setShowHelp(prev => !prev)}
+        type="button"
+      >
+        {showHelp ? 'Hide CSR Help' : 'How to generate a CSR?'}
+      </button>
+
+      {showHelp && (
+        <div className="showhelp">
+          <p><strong>Generate a CSR using OpenSSL and RSA:</strong></p>
+          <pre className="codesnippet">
+            openssl req -new -newkey rsa:2048 -nodes -keyout yourname.key -out yourname.csr
+          </pre>
+          <p>
+            This creates <code>yourname.key</code> (your private key) and <code>yourname.csr</code> (the request file you upload here).
+            Do <strong>not</strong> share the key file—keep it safe.
+          </p>
+          <p><strong>Creating CSR using existing key:</strong></p>
+          <pre className="codesnippet">
+            openssl req -key yourname.key -new -out yourname.csr
+          </pre>
+          <p>
+            This creates <code>yourname.csr</code> (the request file you upload here).
+          </p>
+        </div>
+      )}
+    </div>
+
     </div>
   </div>
 );

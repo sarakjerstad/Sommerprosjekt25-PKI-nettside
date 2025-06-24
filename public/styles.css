@@ -98,3 +98,18 @@ a:hover {
   color: #0056b3;
   text-decoration: underline;
 }
+
+.codesnippet {
+  background: #eee;
+  padding: 1rem;
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+.showhelp {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #f7feff;
+  border: 1px solid #c0dbff;
+  border-radius: 6px;
+}
