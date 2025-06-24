@@ -46,7 +46,7 @@ app.get('/downloadcerts/:id/certificate', async (req, res) => {
     const crtPath = path.join('/CA/newcerts', `${certName}.crt`);
 
     if (!fs.existsSync(crtPath)) {
-      return res.status(404).send('Certificate file not found');
+      return res.status(404).send(`No certificate found with ID: ${docId}`);
     }
 
     res.setHeader('Content-Disposition', `attachment; filename="${certName}.crt"`);
@@ -113,24 +113,10 @@ app.post('/submit', async (req, res) => {
 const certPath = path.join(__dirname, '..', 'CAcert', 'rootCA1.crt');
 
 
-// Behandler nedlastning av CAcert (så langt)
-app.get('/download', (req, res) => {
-  if (!fs.existsSync(certPath)) {
-    return res.status(404).send('Certificate file not found');
-  }
-
-  res.setHeader('Content-Disposition', 'attachment; filename="rootCA1.crt"');
-  res.setHeader('Content-Type', 'application/x-x509-ca-cert');
-
-  const fileStream = fs.createReadStream(certPath);
-  fileStream.pipe(res);
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Server running at http://0.0.0.0:${port}`);
 });
 
-
-// app.listen(port, '0.0.0.0', () => {
-//   console.log(`Server running at http://0.0.0.0:${port}`);
+// app.listen(port, () => {
+//   console.log(`Server running at http://localhost:${port}`);
 // });
-
-app.listen(port, () => {
-  console.log('Server running at http:localhost:${port}');
-});

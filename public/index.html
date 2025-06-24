@@ -23,18 +23,25 @@ const handleFileChange = (e) => {
   const file = e.target.files[0];
   if (!file) return;
 
-  console.log("📁 File selected:", file.name);
+  setLoadingFile(true);
 
   const reader = new FileReader();
 
   reader.onload = (event) => {
-    console.log("✅ File loaded:", event.target.result.length);
-    setFileText(event.target.result);
+    const text = event.target.result;
+    if (!text.includes("BEGIN CERTIFICATE REQUEST")) {
+      alert("Invalid CSR file.");
+      setLoadingFile(false);
+      return;
+    }
+    setFileText(text);
+    setLoadingFile(false);
   };
 
   reader.onerror = (err) => {
     console.error("❌ File read error:", err);
     alert("Failed to read the file. Make sure it's a plain text .csr file.");
+    setLoadingFile(false);
   };
 
   try {
@@ -42,8 +49,10 @@ const handleFileChange = (e) => {
   } catch (err) {
     console.error("❌ readAsText threw an error:", err);
     alert("File could not be read. Try re-selecting it or check its encoding.");
+    setLoadingFile(false);
   }
 };
+
 
 
 
