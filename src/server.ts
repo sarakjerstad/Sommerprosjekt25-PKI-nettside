@@ -110,7 +110,8 @@ app.post('/submit', async (req, res) => {
 });
 
 // Lager statisk sti til CAcerten
-const certPath = path.join(__dirname, '..', 'CAcert', 'rootCA1.crt');
+// const certPath = path.join(__dirname, '..', 'CAcert', 'rootCA1.crt');
+const certPath = path.join('/CA/certs', 'rootCA1.cert.pem');
 
 
 app.listen(port, '0.0.0.0', () => {
