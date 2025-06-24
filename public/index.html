@@ -129,7 +129,7 @@ return (
 
       {showHelp && (
         <div className="showhelp">
-          <p><strong>Generate a CSR using OpenSSL and RSA:</strong></p>
+          <p><strong>Generate a CSR using OpenSSL and RSA without existing key:</strong></p>
           <pre className="codesnippet">
             openssl req -new -newkey rsa:2048 -nodes -keyout yourname.key -out yourname.csr
           </pre>
