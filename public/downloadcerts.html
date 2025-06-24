@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Download Certificate</title>
+  <link rel="stylesheet" href="/styles.css">
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -71,18 +72,20 @@
       };
 
       return (
-        <div>
-          <button onClick={() => window.location.href = '/'}>Return</button>
-          <h1>Download Root CA Certificate</h1>
-          <p>Your certificate ID: {docId}</p>
-          <p>Your chosen name: {certificateName || 'Loading...'}</p>
-          <button onClick={downloadUserCert} disabled={!certificateName}>
-            Download Your Signed Certificate
-          </button>
-          <br /><br />
-          <button onClick={downloadCA}>Download Root CA Certificate</button>
+        <div className="container">
+          <div className="card">
+            <button className="btn" onClick={() => window.location.href = '/'}>Return</button>
+            <h1 className="header">Download Root CA Certificate</h1>
+            <p>Your certificate ID: {docId}</p>
+            <p>Your chosen name: {certificateName || 'Loading...'}</p>
+            <button className="btn" onClick={downloadUserCert} disabled={!certificateName}>
+              Download Your Signed Certificate
+            </button>
+            <button className="btn" onClick={downloadCA}>Download Root CA Certificate</button>
+          </div>
         </div>
       );
+
     }
 
     ReactDOM.createRoot(document.getElementById('root')).render(<DownloadPage />);  

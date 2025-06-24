@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Upload CSR</title>
-  <!-- React and Babel CDN -->
+  <link rel="stylesheet" href="/styles.css">
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -86,25 +86,29 @@ const handleFileChange = (e) => {
     }
   };
 
-  return (
-    <div>
-      <h1>Get your certificate request signed here!</h1>
-      <a href="/downloadcerts">Laste ned CA sert</a>
+return (
+  <div className="container">
+    <div className="card">
+      <h1 className="header">Get your certificate request signed here!</h1>
+      <a href="/downloadcerts" style={{display:'block', marginBottom: '1rem', textAlign: 'center', color: '#007bff', textDecoration: 'none'}}>
+        Download CA Certificate
+      </a>
 
       {successMessage ? (
-        <div style={{ padding: '20px', border: '2px solid green', marginTop: '20px' }}>
+        <div className="success-box">
           <p>{successMessage}</p>
-          <button onClick={handleRedirect}>Take me to download</button>
+          <button className="btn" onClick={handleRedirect}>Take me to download</button>
         </div>
       ) : (
         <form onSubmit={handleSubmit}>
           <div>
             <label>Add your CSR file</label><br />
-            <input type="file" accept=".csr" onChange={handleFileChange} required />
+            <input className="input-file" type="file" accept=".csr" onChange={handleFileChange} required />
           </div>
           <div>
             <label>Choose your certificate-name</label><br />
             <input
+              className="input-text"
               type="text"
               value={certificateName}
               onChange={e => setCertificateName(e.target.value)}
@@ -112,13 +116,15 @@ const handleFileChange = (e) => {
             />
           </div>
           {loadingFile && <p>Reading file...</p>}
-          <button type="submit" disabled={!certificateName || !fileText || loadingFile}>
+          <button className="btn" type="submit" disabled={!certificateName || !fileText || loadingFile}>
             Submit
           </button>
         </form>
       )}
     </div>
-  );
+  </div>
+);
+
 }
 
   ReactDOM.createRoot(document.getElementById('root')).render(<UploadForm />);
