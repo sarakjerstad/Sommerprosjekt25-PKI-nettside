@@ -12,83 +12,79 @@
   <div id="root"></div>
 
   <script type="text/babel">
+  function DownloadPage() {
+    const [docId, setDocId] = React.useState(null);
+    const [certificateName, setCertificateName] = React.useState(null);
+    const [loading, setLoading] = React.useState(true);
 
-    function DownloadPage() {
-      const [docId, setDocId] = React.useState(null);
-      const [certificateName, setCertificateName] = React.useState(null);
+    React.useEffect(() => {
+      const id = window.location.pathname.split('/').pop();
+      setDocId(id);
 
-      React.useEffect(() => {
-        const id = window.location.pathname.split('/').pop();
-        setDocId(id);
+      fetch(`/api/certmeta/${id}`)
+        .then((res) => res.json())
+        .then((data) => {
+          setCertificateName(data.certificateName);
+        })
+        .catch((err) => {
+          console.error("Failed to fetch certificate name:", err);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    }, []);
 
-        // Fetch certificateName from backend
-        fetch(`/api/certmeta/${id}`)
-          .then((res) => res.json())
-          .then((data) => {
-            setCertificateName(data.certificateName);
-          })
-          .catch((err) => {
-            console.error("Failed to fetch certificate name:", err);
-          });
-      }, []);
-
-      const downloadUserCert = async () => {
-        if (!docId || !certificateName) {
-          alert("Certificate info not loaded yet.");
-          return;
-        }
-
-        const res = await fetch(`/downloadcerts/${docId}/certificate`);
-        if (!res.ok) {
-          alert('Failed to download signed certificate.');
-          return;
-        }
-
+    const downloadFile = async (url, filename) => {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Download failed');
+        
         const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
+        const objectUrl = URL.createObjectURL(blob);
+        
         const a = document.createElement('a');
-        a.href = url;
-        a.download = `${certificateName}.crt`; // ✅ Use the name from Firestore
+        a.href = objectUrl;
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      };
+        URL.revokeObjectURL(objectUrl);
+      } catch (err) {
+        alert(`Failed to download ${filename}`);
+        console.error(err);
+      }
+    };
 
-      const downloadCA = async () => {
-        const res = await fetch('/download');
-        if (!res.ok) {
-          alert('Failed to download CA certificate.');
-          return;
-        }
-
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'rootCA1.crt';
-        a.click();
-        URL.revokeObjectURL(url);
-      };
-
-      return (
-        <div className="container">
-          <div className="card">
-            <button className="btn" onClick={() => window.location.href = '/'}>Return</button>
-            <h1 className="header">Download Root CA Certificate</h1>
-            <p>Your certificate ID: {docId}</p>
-            <p>Your chosen name: {certificateName || 'Loading...'}</p>
-            <button className="btn" onClick={downloadUserCert} disabled={!certificateName}>
-              Download Your Signed Certificate
-            </button>
-            <button className="btn" onClick={downloadCA}>Download Root CA Certificate</button>
-          </div>
+    return (
+      <div className="container">
+        <div className="card">
+          <button className="btn" onClick={() => window.location.href = '/'}>Return</button>
+          <h1 className="header">Download Certificates</h1>
+          {loading ? (
+            <p>Loading certificate info...</p>
+          ) : (
+            <>
+              <p>Your chosen name: <strong>{certificateName}</strong></p>
+              <button
+                className="btn"
+                onClick={() => downloadFile(`/downloadcerts/${docId}/certificate`, `${certificateName}.crt`)}
+              >
+                Download Your Signed Certificate
+              </button>
+              <button
+                className="btn"
+                onClick={() => downloadFile('/download', 'rootCA1.crt')}
+              >
+                Download Root CA Certificate
+              </button>
+            </>
+          )}
         </div>
-      );
+      </div>
+    );
+  }
 
-    }
-
-    ReactDOM.createRoot(document.getElementById('root')).render(<DownloadPage />);  
-    </script>
+  ReactDOM.createRoot(document.getElementById('root')).render(<DownloadPage />);  
+  </script>
 </body>
 </html>
