@@ -89,16 +89,6 @@ button.btn {
   box-sizing: border-box;
 }
 
-a {
-  color: #007bff;
-  transition: color 0.3s ease;
-}
-
-a:hover {
-  color: #0056b3;
-  text-decoration: underline;
-}
-
 .codesnippet {
   background: #eee;
   padding: 1rem;
@@ -112,4 +102,8 @@ a:hover {
   background: #f7feff;
   border: 1px solid #c0dbff;
   border-radius: 6px;
+}
+
+.spaced-section {
+  margin-top: 2rem;
 }

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Upload CSR</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+  function UploadForm() {
+    const [showHelp, setShowHelp] = React.useState(false);
+    const [certificateName, setCertificateName] = React.useState('');
+    const [fileText, setFileText] = React.useState('');
+    const [loadingFile, setLoadingFile] = React.useState(false);
+    const [successMessage, setSuccessMessage] = React.useState('');
+    const [docId, setDocId] = React.useState(null);
+    
+    const handleFileChange = (e) => {
+      const file = e.target.files[0];
+      if (!file) {
+        setFileText('');
+        return;
+      }
+      setLoadingFile(true);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target.result;
+        if (!text.includes("BEGIN CERTIFICATE REQUEST")) {
+          alert("Invalid CSR file.");
+          setFileText('');
+          setLoadingFile(false);
+          return;
+        }
+        setFileText(text);
+        setLoadingFile(false);
+      };
+      reader.onerror = (err) => {
+        console.error("File read error:", err);
+        alert("Failed to read the file. Make sure it's a plain text .csr file.");
+        setFileText('');
+        setLoadingFile(false);
+      };
+      try {
+        reader.readAsText(file);
+      } catch (err) {
+        console.error("readAsText threw an error:", err);
+        alert("File could not be read. Try re-selecting it or check its encoding.");
+        setFileText('');
+        setLoadingFile(false);
+      }
+    };
+
+    const handleSubmit = async (e) => {
+      e.preventDefault();
+      
+      try {
+        const res = await fetch('/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ certificateName, csr: fileText }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setSuccessMessage(data.message);
+          setDocId(data.id);
+        } else {
+          const errorText = await res.text();
+          alert('Submission failed: ' + errorText);
+        }
+      } catch (err) {
+        console.error("Submission error:", err);
+        alert("An error occurred during submission.");
+      }
+    };
+
+    const handleRedirect = () => {
+      if (docId) {
+        window.location.href = `/downloadcerts/${docId}`;
+      }
+    };
+
+    return (
+      <div className="container">
+        <div className="card">
+          <h1 className="header">Get your certificate request signed here!</h1>
+          {successMessage ? (
+            <div className="success-box">
+              <p>{successMessage}</p>
+              <button className="btn" onClick={handleRedirect}>Take me to download</button>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit}>
+              <div>
+                <label>Add your CSR file</label><br />
+                <input className="input-file" type="file" accept=".csr" onChange={handleFileChange} required />
+              </div>
+              <div>
+                <label>Choose your certificate-name</label><br />
+                <input
+                  className="input-text"
+                  type="text"
+                  value={certificateName}
+                  onChange={e => setCertificateName(e.target.value)}
+                  required
+                />
+              </div>
+              {loadingFile && <p>Reading file...</p>}
+              <button className="btn" type="submit" disabled={!certificateName || !fileText || loadingFile}>
+                Submit
+              </button>
+            </form>
+          )}
+          <div className="spaced-section">
+            <button className="btn" onClick={() => setShowHelp(prev => !prev)} type="button">
+              {showHelp ? 'Hide CSR Help' : 'How to generate a CSR?'}
+            </button>
+            {showHelp && (
+              <div className="showhelp">
+                <p><strong>Generate a CSR using OpenSSL (new RSA key):</strong></p>
+                <pre className="codesnippet">
+                  openssl req -new -newkey rsa:2048 -nodes -keyout yourname.key -out yourname.csr
+                </pre>
+                <p>
+                  This creates <code>yourname.key</code> (your private key) and <code>yourname.csr</code> (the request file).
+                  Do <strong>not</strong> share the key file—keep it safe.
+                </p>
+                <p><strong>Using existing key:</strong></p>
+                <pre className="codesnippet">
+                  openssl req -key yourname.key -new -out yourname.csr
+                </pre>
+                <p>
+                  This creates <code>yourname.csr</code> for uploading here.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<UploadForm />);
+  </script>
+
+</body>
+</html>
