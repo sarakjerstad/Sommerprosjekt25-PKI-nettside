@@ -61,110 +61,70 @@ function UploadForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setSuccessMessage('');
-    setDocIds([]);
     setLoading(true);
 
-    if (mode === 'single') {
-      if (!certificateName || !singleFileText) {
-        alert("Please provide a certificate name and select a CSR file.");
-        setLoading(false);
-        return;
-      }
-      // Submit single CSR as before
-      try {
+    try {
+      if (mode === 'single') {
+        // Your single cert logic, example:
         const res = await fetch('/submit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ certificateName, csr: singleFileText }),
+          body: JSON.stringify({ certificateName, csr: singleFileText }), // use the state variable here
         });
-        if (res.ok) {
-          const data = await res.json();
-          setSuccessMessage(data.message);
-          setDocIds([data.id]);
-        } else {
-          const errorText = await res.text();
-          alert('Submission failed: ' + errorText);
-        }
-      } catch (err) {
-        alert("Submission error.");
-        console.error(err);
-      }
-    } else {
-      // Multiple mode - upload each CSR with a generated name or use file name
-      if (multipleFiles.length === 0) {
-        alert("No CSR files selected.");
-        setLoading(false);
-        return;
-      }
 
-      if (namingConvention === 'predefined' && !baseName) {
-        alert("Please enter a base name.");
-        setLoading(false);
-        return;
-      }
 
-      try {
-        const zip = new JSZip();
-
-        for (let i = 0; i < multipleFiles.length; i++) {
-          const file = multipleFiles[i];
-          const text = await file.text();
-
-          if (!text.includes("BEGIN CERTIFICATE REQUEST")) {
-            alert(`File ${file.name} is not a valid CSR.`);
-            continue;
-          }
-
-          let certName = '';
-          if (namingConvention === 'autoID') {
-            certName = `auto_${i}`;
-          } else if (namingConvention === 'predefined') {
-            certName = `${baseName}${i + 1}`;
-          } else if (namingConvention === 'filename') {
-            certName = file.name.replace(/\.csr$/i, '');
-          }
-
-          zip.file(`${certName}.csr`, text);
+        if (!res.ok) {
+          throw new Error('Failed to submit single cert');
         }
 
-        const blob = await zip.generateAsync({ type: 'blob' });
-        const reader = new FileReader();
+        const data = await res.json();
+        setDocIds([data.id]); // assuming your backend returns { id: '...' }
+        setSuccessMessage('Certificate request submitted successfully!');
+        // Handle single cert res (download or whatever)
 
-        reader.onloadend = async () => {
-          const base64 = reader.result.split(',')[1]; // Strip "data:application/zip;base64,..."
+      } else if (mode === 'multiple') {
+        if (multipleFiles.length === 0) {
+            alert('No CSR files selected');
+            setLoading(false);
+            return;
+          }
+
+          const zip = new JSZip();
+          for (const file of multipleFiles) {
+            const content = await file.text();
+            zip.file(file.name, content);
+          }
+          const zipBlob = await zip.generateAsync({ type: 'blob' });
+          const arrayBuffer = await zipBlob.arrayBuffer();
+          const uint8Array = new Uint8Array(arrayBuffer);
+          const base64String = btoa(String.fromCharCode(...uint8Array));
 
           const res = await fetch('/submit-multiple-zip', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              zipFileName: 'multiple_csrs.zip',
-              zipBase64: base64
+              zipBase64: base64String,
+              namingConvention,
+              baseName,
             }),
+            headers: { 'Content-Type': 'application/json' },
           });
 
-          if (res.ok) {
-            const result = await res.json();
-            setSuccessMessage(result.message);
-            setDocIds(result.certificates);
-            setMasterZipUrl(result.masterZipUrl);
-          } else {
-            const errText = await res.text();
-            alert("Server error: " + errText);
+          if (!res.ok) {
+            throw new Error('Failed to submit multiple zip certs');
           }
 
-          setLoading(false);
-        };
+          const signedBlob = await res.blob();
+          const downloadUrl = window.URL.createObjectURL(signedBlob);
 
-        reader.readAsDataURL(blob);
-
-      } catch (err) {
-        console.error('Zipping/upload error', err);
-        alert("Something went wrong while zipping or uploading.");
+          setMasterZipUrl(downloadUrl);
+          setSuccessMessage(`Successfully processed ${multipleFiles.length} CSRs!`);
+        }
+      } catch (error) {
+        console.error(error);
+        alert(error.message || 'Something went wrong');
+      } finally {
         setLoading(false);
       }
-    }
-    setLoading(false);
   };
 
   return (
@@ -214,17 +174,21 @@ function UploadForm() {
             {mode === 'multiple' && masterZipUrl && (
               <div className="success-box">
                 <p>{successMessage}</p>
-                <a className="btn" href={masterZipUrl} target="_blank" rel="noopener noreferrer">
+                <a className="btn" href={masterZipUrl} download="signed_certificates.zip">
                   Download All Signed Certificates (ZIP)
                 </a>
               </div>
-            )}
-
-          </div>
         )}
-
-        {!successMessage && (
-          <form onSubmit={handleSubmit}>
+            
+            </div>
+          )}
+          
+          {!successMessage && (
+            
+            <form onSubmit={handleSubmit}>
+              {loading && (
+                <div className="spinner" title="Processing..."></div>
+                )}
             {mode === 'single' && (
               <>
                 <div>

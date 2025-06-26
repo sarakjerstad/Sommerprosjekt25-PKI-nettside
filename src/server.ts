@@ -1,12 +1,15 @@
 import express from 'express';
 import path from 'path';
-import fs from 'fs';
+import fs from 'fs/promises';
 import fsExtra from 'fs-extra';
 import unzipper from 'unzipper';
 import archiver from 'archiver';
-import { execFile } from 'child_process';
+import { execFile, exec } from 'child_process';
 import { Buffer } from 'buffer';
 import { db } from './firebase';
+import os from 'os';
+import util from 'util';
+import { promisify } from 'util';
 
 const app = express();
 const port = 3000;
@@ -18,12 +21,11 @@ const CA_CERT_PATH = '/CA/certs/rootCA1.cert.pem';      // Update as needed
 const CERT_DIR = '/CA/newcerts';                        // Update as needed
 const UPLOAD_DIR = '/CA/uploadsWebsite';                // Update as needed
 const SIGN_SCRIPT = '/home/tsvuser/bashScripts/GPTscript.sh'; // Update as needed
-const ZIP_DIR = path.join(ROOT_DIR, 'zips');
 
-fsExtra.ensureDirSync(ZIP_DIR);
+const execAsync = util.promisify(exec);
 
 // ----- MIDDLEWARE -----
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '100mb' }));
 app.use(express.static(PUBLIC_DIR));
 app.use('/uploadsWebsite', express.static(UPLOAD_DIR));
 
@@ -42,107 +44,166 @@ app.get('/downloadcerts/:id', (req, res) => {
 // Submit single CSR
 app.post('/submit', async (req, res) => {
   const { certificateName, csr } = req.body;
-  if (!certificateName || !csr) return res.status(400).send('Missing certificate name or CSR.');
+
+  if (!certificateName || !csr) {
+    return res.status(400).send('Missing certificate name or CSR content.');
+  }
 
   try {
     const docRef = await db.collection('certificate_requests').add({
       certificateName,
       csr,
-      timestamp: new Date(),
+      timestamp: new Date()
     });
 
     const docId = docRef.id;
 
+    // Wait for signing script before sending response
     await runSignScript(docId);
-    res.json({ message: 'Certificate saved and signed successfully', id: docId });
+
+    res.json({ message: 'Certificate saved successfully', id: docId });
+
   } catch (err) {
     console.error('Submit error:', err);
     res.status(500).send('Internal server error');
   }
 });
 
+
 // Handle zip upload of multiple CSRs
 app.post('/submit-multiple-zip', async (req, res) => {
-  const { zipFileName, zipBase64 } = req.body;
-  if (!zipFileName || !zipBase64) return res.status(400).send('Missing zip file or name.');
-
-  const buffer = Buffer.from(zipBase64, 'base64');
-  const tempZipPath = path.join(UPLOAD_DIR, `temp_${Date.now()}_${zipFileName}`);
-  const extractDir = path.join(UPLOAD_DIR, `extracted_${Date.now()}`);
-  await fsExtra.ensureDir(extractDir);
-
   try {
-    await fs.promises.writeFile(tempZipPath, buffer);
+    const { zipBase64, namingConvention = 'autoID', baseName = 'cert' } = req.body;
 
-    // Extract zip
-    await fs.createReadStream(tempZipPath)
-      .pipe(unzipper.Extract({ path: extractDir }))
-      .promise();
+    if (!zipBase64) return res.status(400).send('Missing zipBase64 in request body');
 
-    const csrFiles: string[] = [];
-    function walkDir(dir: string) {
-      for (const file of fs.readdirSync(dir)) {
-        const fullPath = path.join(dir, file);
-        if (fs.statSync(fullPath).isDirectory()) walkDir(fullPath);
-        else if (file.endsWith('.csr')) csrFiles.push(fullPath);
+    const zipBuffer = Buffer.from(zipBase64, 'base64');
+    const directory = await unzipper.Open.buffer(zipBuffer);
+
+        // Filter CSR files only
+        const csrFiles = directory.files.filter(f => f.path.toLowerCase().endsWith('.csr'));
+
+        if (csrFiles.length === 0) {
+          return res.status(400).send('No CSR files found in zip');
+        }
+
+        // Prepare array to hold individual cert zip buffers
+        const individualZips: { name: string, buffer: Buffer }[] = [];
+
+        // Process each CSR sequentially
+        for (let i = 0; i < csrFiles.length; i++) {
+          const file = csrFiles[i];
+
+          // Read CSR content as text
+          const csr = (await file.buffer()).toString('utf-8');
+          if (!csr.includes('BEGIN CERTIFICATE REQUEST')) {
+            console.warn(`Skipping invalid CSR file: ${file.path}`);
+            continue;
+          }
+
+          // Determine certificateName based on namingConvention
+          let certificateName: string;
+          if (namingConvention === 'filename') {
+            certificateName = path.basename(file.path, '.csr');
+          } else if (namingConvention === 'predefined') {
+            certificateName = `${baseName}_${i + 1}`;
+          } else {
+            certificateName = ""; // will use docId for name later
+          }
+
+          // Save CSR to Firestore
+          const docRef = await db.collection('certificate_requests').add({
+            certificateName,
+            csr,
+            timestamp: new Date()
+          });
+          const docId = docRef.id;
+          const finalCertName = certificateName || docId;
+
+          // Run signing script
+          await new Promise<void>((resolve, reject) => {
+            execFile('sudo', ['/bin/bash', SIGN_SCRIPT, docId], (error, stdout, stderr) => {
+              if (error) return reject(error);
+              if (stderr) console.error(`Signing stderr (${docId}):`, stderr);
+              resolve();
+            });
+          });
+
+          // Wait for signed certificate to appear
+          const certPath = path.join(CERT_DIR, `${docId}.crt`);
+          await waitForFile(certPath);
+
+          // Read signed cert and CA cert from disk
+          const certData = await fs.readFile(certPath);
+          const caCertData = await fs.readFile(CA_CERT_PATH);
+
+          // Create zip in memory for this certificate
+          const archive = archiver('zip', { zlib: { level: 9 } });
+          const zipChunks: Buffer[] = [];
+
+          archive.on('data', chunk => zipChunks.push(chunk));
+          const archivePromise = new Promise<void>((resolve, reject) => {
+            archive.on('end', () => resolve());
+            archive.on('error', reject);
+            archive.on('finish', () => resolve());
+          });
+
+          archive.append(certData, { name: `${finalCertName}.crt` });
+          archive.append(caCertData, { name: 'rootCA1.cert.pem' });
+
+          archive.finalize();
+
+          await archivePromise;
+
+          const zippedBuffer = Buffer.concat(zipChunks);
+          individualZips.push({ name: `${finalCertName}.zip`, buffer: zippedBuffer });
+        }
+
+        // Now create master zip bundling all individual zips
+        const masterArchive = archiver('zip', { zlib: { level: 9 } });
+        const masterChunks: Buffer[] = [];
+
+        masterArchive.on('data', chunk => masterChunks.push(chunk));
+        const masterPromise = new Promise<void>((resolve, reject) => {
+          masterArchive.on('end', () => resolve());
+          masterArchive.on('error', reject);
+          masterArchive.on('finish', () => resolve());
+        });
+
+        for (const { name, buffer } of individualZips) {
+          masterArchive.append(buffer, { name });
+        }
+        masterArchive.finalize();
+
+        await masterPromise;
+
+        const masterZipBuffer = Buffer.concat(masterChunks);
+
+        // Send zip file as response with headers
+        res.setHeader('Content-Disposition', 'attachment; filename=master.zip');
+        res.setHeader('Content-Type', 'application/zip');
+        res.send(masterZipBuffer);
+
+      } catch (error) {
+        console.error('Processing error:', error);
+        res.status(500).send('Failed to process CSR files');
       }
-    }
-    walkDir(extractDir);
-
-    if (csrFiles.length === 0) return res.status(400).send('No .csr files found.');
-
-    const signedCerts: { id: string; certificateName: string; zipPath: string }[] = [];
-
-    for (const csrFilePath of csrFiles) {
-      const csrContent = await fs.promises.readFile(csrFilePath, 'utf-8');
-      const certificateName = path.parse(csrFilePath).name;
-
-      const docRef = await db.collection('certificate_requests').add({
-        certificateName,
-        csr: csrContent,
-        timestamp: new Date(),
-      });
-      const docId = docRef.id;
-
-      await runSignScript(docId);
-
-      const certPath = path.join(CERT_DIR, `${docId}.crt`);
-      await waitForFile(certPath);
-
-      const zipPath = await createIndividualZip(docId, certificateName);
-      signedCerts.push({ id: docId, certificateName, zipPath });
-    }
-
-    const masterZipName = `all_certificates_${Date.now()}.zip`;
-    const masterZipPath = path.join(ZIP_DIR, masterZipName);
-
-    await createMasterZip(masterZipPath, signedCerts.map(s => s.zipPath));
-
-    // Clean up
-    await fsExtra.remove(tempZipPath);
-    await fsExtra.remove(extractDir);
-    for (const { zipPath } of signedCerts) await fsExtra.remove(zipPath);
-
-    res.json({
-      message: `Signed ${signedCerts.length} certificates.`,
-      certificates: signedCerts.map(({ id, certificateName }) => ({ id, certificateName })),
-      masterZipUrl: `/download-master/${masterZipName}`,
     });
 
-  } catch (err) {
-    console.error('submit-multiple-zip error:', err);
-    res.status(500).send('Failed to process uploaded zip.');
-  }
-});
+
 
 // Download CA root certificate
-app.get('/download', (req, res) => {
-  if (!fs.existsSync(CA_CERT_PATH)) return res.status(404).send('CA certificate not found.');
+app.get('/download', async (req, res) => {
+  try {
+    await fs.access(CA_CERT_PATH);
+  } catch {
+    return res.status(404).send('CA certificate not found.');
+  }
 
   res.setHeader('Content-Disposition', 'attachment; filename="rootCA1.cert.pem"');
   res.setHeader('Content-Type', 'application/x-x509-ca-cert');
 
-  fs.createReadStream(CA_CERT_PATH).pipe(res);
+  fsExtra.createReadStream(CA_CERT_PATH).pipe(res);
 });
 
 // Download individual signed certificate
@@ -155,11 +216,16 @@ app.get('/downloadcerts/:id/certificate', async (req, res) => {
 
     const { certificateName } = doc.data() || {};
     const certPath = path.join(CERT_DIR, `${docId}.crt`);
-    if (!fs.existsSync(certPath)) return res.status(404).send('Signed certificate missing.');
+    try {
+      await fs.access(certPath);
+    } catch {
+      return res.status(404).send('Signed certificate missing.');
+    }
 
     res.setHeader('Content-Disposition', `attachment; filename="${certificateName}.crt"`);
     res.setHeader('Content-Type', 'application/x-x509-user-cert');
-    fs.createReadStream(certPath).pipe(res);
+
+    fsExtra.createReadStream(certPath).pipe(res);
 
   } catch (err) {
     console.error('Download error:', err);
@@ -180,13 +246,6 @@ app.get('/api/certmeta/:id', async (req, res) => {
   }
 });
 
-// Download master zip file
-app.get('/download-master/:zipName', (req, res) => {
-  const zipPath = path.join(ZIP_DIR, req.params.zipName);
-  if (fs.existsSync(zipPath)) res.download(zipPath);
-  else res.status(404).send('Master zip not found.');
-});
-
 // ----- UTILITIES -----
 
 function runSignScript(docId: string): Promise<void> {
@@ -204,9 +263,12 @@ function waitForFile(filePath: string, timeout = 10000): Promise<void> {
   return new Promise((resolve, reject) => {
     const start = Date.now();
     const check = () => {
-      if (fs.existsSync(filePath)) return resolve();
-      if (Date.now() - start > timeout) return reject(new Error('File not found in time'));
-      setTimeout(check, 200);
+      fs.access(filePath)
+        .then(() => resolve())
+        .catch(() => {
+          if (Date.now() - start > timeout) return reject(new Error('File not found in time'));
+          setTimeout(check, 200);
+        });
     };
     check();
   });
@@ -220,7 +282,7 @@ async function createIndividualZip(docId: string, certificateName: string): Prom
   await fsExtra.ensureDir(path.dirname(zipFilePath));
 
   return new Promise((resolve, reject) => {
-    const output = fs.createWriteStream(zipFilePath);
+    const output = fsExtra.createWriteStream(zipFilePath);
     const archive = archiver('zip');
 
     output.on('close', () => resolve(zipFilePath));
@@ -235,7 +297,7 @@ async function createIndividualZip(docId: string, certificateName: string): Prom
 
 async function createMasterZip(outputPath: string, zipPaths: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    const output = fs.createWriteStream(outputPath);
+    const output = fsExtra.createWriteStream(outputPath);
     const archive = archiver('zip');
 
     output.on('close', resolve);
@@ -248,7 +310,6 @@ async function createMasterZip(outputPath: string, zipPaths: string[]): Promise<
     archive.finalize();
   });
 }
-
 
 // ---- INSTILLINGER FOR KJØRING AV KODE ----
 //NB: bare 1 app.listen av gangen
