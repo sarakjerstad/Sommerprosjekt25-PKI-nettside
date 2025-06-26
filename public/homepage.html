@@ -7,142 +7,362 @@
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
 <body>
   <div id="root"></div>
 
   <script type="text/babel">
-  function UploadForm() {
-    const [showHelp, setShowHelp] = React.useState(false);
-    const [certificateName, setCertificateName] = React.useState('');
-    const [fileText, setFileText] = React.useState('');
-    const [loadingFile, setLoadingFile] = React.useState(false);
-    const [successMessage, setSuccessMessage] = React.useState('');
-    const [docId, setDocId] = React.useState(null);
-    
-    const handleFileChange = (e) => {
-      const file = e.target.files[0];
-      if (!file) {
-        setFileText('');
+function UploadForm() {
+  const [mode, setMode] = React.useState('single'); // 'single' or 'multiple'
+  const [certificateName, setCertificateName] = React.useState('');
+  const [singleFileText, setSingleFileText] = React.useState('');
+  const [multipleFiles, setMultipleFiles] = React.useState([]);
+  const [loading, setLoading] = React.useState(false);
+  const [successMessage, setSuccessMessage] = React.useState('');
+  const [showHelp, setShowHelp] = React.useState(false);
+  const [docIds, setDocIds] = React.useState([]); // for multiple
+  const [namingConvention, setNamingConvention] = React.useState('autoID'); // 'autoID' | 'predefined' | 'filename'
+  const [baseName, setBaseName] = React.useState(''); // for predefined base name
+  const [masterZipUrl, setMasterZipUrl] = React.useState(null);
+
+  // Handle single file read as before
+  const handleSingleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) {
+      setSingleFileText('');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target.result;
+      if (!text.includes("BEGIN CERTIFICATE REQUEST")) {
+        alert("Invalid CSR file.");
+        setSingleFileText('');
         return;
       }
-      setLoadingFile(true);
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const text = event.target.result;
-        if (!text.includes("BEGIN CERTIFICATE REQUEST")) {
-          alert("Invalid CSR file.");
-          setFileText('');
-          setLoadingFile(false);
-          return;
-        }
-        setFileText(text);
-        setLoadingFile(false);
-      };
-      reader.onerror = (err) => {
-        console.error("File read error:", err);
-        alert("Failed to read the file. Make sure it's a plain text .csr file.");
-        setFileText('');
-        setLoadingFile(false);
-      };
-      try {
-        reader.readAsText(file);
-      } catch (err) {
-        console.error("readAsText threw an error:", err);
-        alert("File could not be read. Try re-selecting it or check its encoding.");
-        setFileText('');
-        setLoadingFile(false);
-      }
+      setSingleFileText(text);
     };
+    reader.readAsText(file);
+  };
 
-    const handleSubmit = async (e) => {
-      e.preventDefault();
-      
+  // Handle directory upload
+  const handleDirectoryChange = (e) => {
+    const files = Array.from(e.target.files);
+    // Filter only .csr files
+    const csrFiles = files.filter(f => f.name.toLowerCase().endsWith('.csr'));
+    if (csrFiles.length === 0) {
+      alert("No .csr files found in the selected directory.");
+      setMultipleFiles([]);
+      return;
+    }
+    setMultipleFiles(csrFiles);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSuccessMessage('');
+    setDocIds([]);
+    setLoading(true);
+
+    if (mode === 'single') {
+      if (!certificateName || !singleFileText) {
+        alert("Please provide a certificate name and select a CSR file.");
+        setLoading(false);
+        return;
+      }
+      // Submit single CSR as before
       try {
         const res = await fetch('/submit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ certificateName, csr: fileText }),
+          body: JSON.stringify({ certificateName, csr: singleFileText }),
         });
         if (res.ok) {
           const data = await res.json();
           setSuccessMessage(data.message);
-          setDocId(data.id);
+          setDocIds([data.id]);
         } else {
           const errorText = await res.text();
           alert('Submission failed: ' + errorText);
         }
       } catch (err) {
-        console.error("Submission error:", err);
-        alert("An error occurred during submission.");
+        alert("Submission error.");
+        console.error(err);
       }
-    };
-
-    const handleRedirect = () => {
-      if (docId) {
-        window.location.href = `/downloadcerts/${docId}`;
+    } else {
+      // Multiple mode - upload each CSR with a generated name or use file name
+      if (multipleFiles.length === 0) {
+        alert("No CSR files selected.");
+        setLoading(false);
+        return;
       }
-    };
 
-    return (
-      <div className="container">
-        <div className="card">
-          <h1 className="header">Get your certificate request signed here!</h1>
-          {successMessage ? (
-            <div className="success-box">
-              <p>{successMessage}</p>
-              <button className="btn" onClick={handleRedirect}>Take me to download</button>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmit}>
-              <div>
-                <label>Add your CSR file</label><br />
-                <input className="input-file" type="file" accept=".csr" onChange={handleFileChange} required />
-              </div>
-              <div>
-                <label>Choose your certificate-name</label><br />
-                <input
-                  className="input-text"
-                  type="text"
-                  value={certificateName}
-                  onChange={e => setCertificateName(e.target.value)}
-                  required
-                />
-              </div>
-              {loadingFile && <p>Reading file...</p>}
-              <button className="btn" type="submit" disabled={!certificateName || !fileText || loadingFile}>
-                Submit
+      if (namingConvention === 'predefined' && !baseName) {
+        alert("Please enter a base name.");
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const zip = new JSZip();
+
+        for (let i = 0; i < multipleFiles.length; i++) {
+          const file = multipleFiles[i];
+          const text = await file.text();
+
+          if (!text.includes("BEGIN CERTIFICATE REQUEST")) {
+            alert(`File ${file.name} is not a valid CSR.`);
+            continue;
+          }
+
+          let certName = '';
+          if (namingConvention === 'autoID') {
+            certName = `auto_${i}`;
+          } else if (namingConvention === 'predefined') {
+            certName = `${baseName}${i + 1}`;
+          } else if (namingConvention === 'filename') {
+            certName = file.name.replace(/\.csr$/i, '');
+          }
+
+          zip.file(`${certName}.csr`, text);
+        }
+
+        const blob = await zip.generateAsync({ type: 'blob' });
+        const reader = new FileReader();
+
+        reader.onloadend = async () => {
+          const base64 = reader.result.split(',')[1]; // Strip "data:application/zip;base64,..."
+
+          const res = await fetch('/submit-multiple-zip', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              zipFileName: 'multiple_csrs.zip',
+              zipBase64: base64
+            }),
+          });
+
+          if (res.ok) {
+            const result = await res.json();
+            setSuccessMessage(result.message);
+            setDocIds(result.certificates);
+            setMasterZipUrl(result.masterZipUrl);
+          } else {
+            const errText = await res.text();
+            alert("Server error: " + errText);
+          }
+
+          setLoading(false);
+        };
+
+        reader.readAsDataURL(blob);
+
+      } catch (err) {
+        console.error('Zipping/upload error', err);
+        alert("Something went wrong while zipping or uploading.");
+        setLoading(false);
+      }
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="container">
+      <div className="card">
+        <h1 className="header">Get your certificate request signed here!</h1>
+        {/* Select mode */}
+        <div>
+          <label>
+            <input
+              type="radio"
+              name="uploadMode"
+              value="single"
+              checked={mode === 'single'}
+              onChange={() => {
+                setMode('single');
+                setSuccessMessage('');
+                setDocIds([]);
+              }}
+            />
+            Single CSR file upload
+          </label>
+          <label style={{ marginLeft: '20px' }}>
+            <input
+              type="radio"
+              name="uploadMode"
+              value="multiple"
+              checked={mode === 'multiple'}
+              onChange={() => {
+                setMode('multiple');
+                setSuccessMessage('');
+                setDocIds([]);
+              }}
+            />
+            Upload CSR directory (multiple files)
+          </label>
+        </div>
+
+        {successMessage && (
+          <div className="success-box">
+            <p>{successMessage}</p>
+            {mode === 'single' && docIds.length > 0 && (
+              <button className="btn" onClick={() => window.location.href = `/downloadcerts/${docIds[0]}`}>
+                Take me to download
               </button>
-            </form>
-          )}
-          <div className="spaced-section">
-            <button className="btn" onClick={() => setShowHelp(prev => !prev)} type="button">
-              {showHelp ? 'Hide CSR Help' : 'How to generate a CSR?'}
-            </button>
-            {showHelp && (
-              <div className="showhelp">
-                <p><strong>Generate a CSR using OpenSSL (new RSA key):</strong></p>
-                <pre className="codesnippet">
-                  openssl req -new -newkey rsa:2048 -nodes -keyout yourname.key -out yourname.csr
-                </pre>
-                <p>
-                  This creates <code>yourname.key</code> (your private key) and <code>yourname.csr</code> (the request file).
-                  Do <strong>not</strong> share the key file—keep it safe.
-                </p>
-                <p><strong>Using existing key:</strong></p>
-                <pre className="codesnippet">
-                  openssl req -key yourname.key -new -out yourname.csr
-                </pre>
-                <p>
-                  This creates <code>yourname.csr</code> for uploading here.
-                </p>
+            )}
+            {mode === 'multiple' && masterZipUrl && (
+              <div className="success-box">
+                <p>{successMessage}</p>
+                <a className="btn" href={masterZipUrl} target="_blank" rel="noopener noreferrer">
+                  Download All Signed Certificates (ZIP)
+                </a>
               </div>
             )}
+
           </div>
+        )}
+
+        {!successMessage && (
+          <form onSubmit={handleSubmit}>
+            {mode === 'single' && (
+              <>
+                <div>
+                  <label>Add your CSR file</label><br />
+                  <input
+                    className="input-file"
+                    type="file"
+                    accept=".csr"
+                    onChange={handleSingleFileChange}
+                    required
+                  />
+                </div>
+                <div>
+                  <label>Choose your certificate-name</label><br />
+                  <input
+                    className="input-text"
+                    type="text"
+                    value={certificateName}
+                    onChange={e => setCertificateName(e.target.value)}
+                    required
+                  />
+                </div>
+              </>
+            )}
+
+            {mode === 'multiple' && (
+              <>
+                <div>
+                  <label>Select directory containing CSRs</label><br />
+                  <input
+                    className="input-file"
+                    type="file"
+                    webkitdirectory="true"
+                    multiple
+                    onChange={handleDirectoryChange}
+                    required
+                  />
+                </div>
+
+                {multipleFiles.length > 0 && (
+                  <div>
+                    <p>Found {multipleFiles.length} CSR files:</p>
+                    <ul>
+                      {multipleFiles.map(file => (
+                        <li key={file.name}>{file.name}</li>
+                      ))}
+                    </ul>
+                        {masterZipUrl && (
+                          <a href={masterZipUrl} download className="btn">
+                            Download All Certificates ZIP
+                          </a>
+                        )}
+                  </div>
+                )}
+
+                <div className="spaced-section-medium">
+                  <label><strong>Select naming convention:</strong></label><br />
+                  
+                  <label>
+                    <input
+                      type="radio"
+                      name="naming"
+                      value="autoID"
+                      checked={namingConvention === 'autoID'}
+                      onChange={() => setNamingConvention('autoID')}
+                    />
+                    Use auto-generated IDs (default)
+                  </label><br />
+
+                  <label>
+                    <input
+                      type="radio"
+                      name="naming"
+                      value="predefined"
+                      checked={namingConvention === 'predefined'}
+                      onChange={() => setNamingConvention('predefined')}
+                    />
+                    Predefined base name with numbering
+                  </label>
+                  {namingConvention === 'predefined' && (
+                    <input
+                      type="text"
+                      placeholder="Enter base name"
+                      value={baseName}
+                      onChange={e => setBaseName(e.target.value)}
+                      required={namingConvention === 'predefined' && mode === 'multiple'}
+                      style={{ marginLeft: '10px' }}
+                    />
+                  )}
+                  <br />
+
+                  <label>
+                    <input
+                      type="radio"
+                      name="naming"
+                      value="filename"
+                      checked={namingConvention === 'filename'}
+                      onChange={() => setNamingConvention('filename')}
+                    />
+                    Use file name from CSR file
+                  </label>
+                </div>
+              </>
+            )}
+            <button className="btn" type="submit" disabled={loading}>
+              {loading ? 'Uploading and Signing...' : 'Submit'}
+            </button>
+          </form>
+        )}
+
+        <div className="spaced-section">
+          <button className="btn" onClick={() => setShowHelp(prev => !prev)} type="button">
+            {showHelp ? 'Hide CSR Help' : 'How to generate a CSR?'}
+          </button>
+          {showHelp && (
+            <div className="showhelp">
+              <p><strong>Generate a CSR using OpenSSL (new RSA key):</strong></p>
+              <pre className="codesnippet">
+                openssl req -new -newkey rsa:2048 -nodes -keyout yourname.key -out yourname.csr
+              </pre>
+              <p>
+                This creates <code>yourname.key</code> (your private key) and <code>yourname.csr</code> (the request file).
+                Do <strong>not</strong> share the key file—keep it safe.
+              </p>
+              <p><strong>Using existing key:</strong></p>
+              <pre className="codesnippet">
+                openssl req -key yourname.key -new -out yourname.csr
+              </pre>
+              <p>
+                This creates <code>yourname.csr</code> for uploading here.
+              </p>
+            </div>
+          )}
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   ReactDOM.createRoot(document.getElementById('root')).render(<UploadForm />);
   </script>
