@@ -6,10 +6,10 @@ A `React + Express + Firebase` project for uploading CSR files and saving them t
 
 ## Prerequisites
 
-- `Node.js` (v18 or newer recommended)  
-- `npm` (comes with Node.js)  
-- `Firebase Project` with Firestore enabled  
-- Firebase `Service Account JSON` file  
+- **Node.js** (v18 or newer recommended)  
+- **npm** (comes with Node.js)  
+- **Firebase Project** with Firestore enabled  
+- Firebase **Service Account JSON** file  
 - `openssl` command line tool installed (for signing CSRs)  
 - `jq` command line tool installed (used in the signing script)  
 
@@ -131,17 +131,17 @@ signScript.sh           # Bash script to fetch and sign CSRs (Known as GPTscript
 
 ## Troubleshooting
 
-#### Error: Cannot find module 'ts-node'
-Run `npm install` to ensure dependencies are installed.
+- **Error: Cannot find module 'ts-node'**
+  Run `npm install` to ensure dependencies are installed.
 
-#### Firebase permissions errors
-Verify your service account key and Firestore security rules allow write access.
+- **Firebase permissions errors**
+  Verify your service account key and Firestore security rules allow write access.
 
-#### Environment variables not loading
-Ensure `.env` is in the root folder and variables are correctly formatted (no trailing commas).
+- **Environment variables not loading**
+  Ensure `.env` is in the root folder and variables are correctly formatted (no trailing commas).
 
-#### `jq` not found in signing script
-Install `jq` with your package manager (e.g., `sudo apt install jq`).
+- **`jq` not found in signing script**
+  Install `jq` with your package manager (e.g., `sudo apt install jq`).
 
 --- 
 ## Notes & Recommendations
