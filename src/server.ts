@@ -41,6 +41,9 @@ app.get('/downloadcerts/:id', (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'downloadcerts.html'));
 });
 
+// Gir tilgang til bruk av CRL
+app.use('/crl', express.static('/CA/crl'));
+
 // Submit single CSR
 app.post('/submit', async (req, res) => {
   const { certificateName, csr } = req.body;
