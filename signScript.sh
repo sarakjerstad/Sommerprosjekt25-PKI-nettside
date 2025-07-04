@@ -1,16 +1,16 @@
 #!/bin/bash
 
 # --- Configuration ---
-# Change all this to fit your own setup
-PROJECT_ID=""
-COLLECTION=""
-API_KEY=""
+PROJECT_ID="kda-sommerprosjekt25"
+COLLECTION="certificate_requests"
+API_KEY="AIzaSyCK2NAphMT6UEQ4BuZMoh11tOTzgjMe-4E"
 BASE_URL="https://firestore.googleapis.com/v1/projects/$PROJECT_ID/databases/(default)/documents/$COLLECTION"
 
 CA_CERT_PATH="/CA/certs/rootCA1.cert.pem"
 CA_KEY_PATH="/CA/rootCA1.key.pem"
 CSR_DIR="/home/tsvuser/bashScripts/csrTest"
 CERT_OUTPUT_DIR="/CA/newcerts"
+CA_CONF="/CA/openssl.cnf"
 
 # --- Fetching documentID from website ---
 DOC_ID="$1"
@@ -54,9 +54,9 @@ echo "Signing the CSR..."
 CA_KEY_PASS="ca1passwd"
 
 if [ -z "$CA_KEY_PASS" ]; then
-    openssl x509 -req -in "$CSR_FILE" -CA "$CA_CERT_PATH" -CAkey "$CA_KEY_PATH" -CAcreateserial -out "$CRT_FILE" -days 90 -sha256
+    openssl ca -config "$CA_CONF" -in "$CSR_FILE" -out "$CRT_FILE" -days 90 -notext -batch -extensions usr_cert
 else
-    openssl x509 -req -in "$CSR_FILE" -CA "$CA_CERT_PATH" -CAkey "$CA_KEY_PATH" -CAcreateserial -out "$CRT_FILE" -days 90 -sha256 -passin pass:"$CA_KEY_PASS"
+    openssl ca -config "$CA_CONF" -in "$CSR_FILE" -out "$CRT_FILE" -days 90 -notext -batch -passin pass:"$CA_KEY_PASS" -extensions usr_cert
 fi
 
 if [ $? -eq 0 ]; then
