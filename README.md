@@ -79,7 +79,7 @@ The server will run at whichever mode you've chosen at the bottom of `server.ts`
 
 --- 
 
-## Certificate Signing Script (GPTscript.sh)
+## Certificate Signing Script (signScript.sh)
 
 This bash script is used to:
 - Fetch a CSR from Firestore using the document ID
