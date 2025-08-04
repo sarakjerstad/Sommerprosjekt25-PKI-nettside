@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # --- Configuration ---
-PROJECT_ID="kda-sommerprosjekt25"
+PROJECT_ID="example"
 COLLECTION="certificate_requests"
-API_KEY="AIzaSyCK2NAphMT6UEQ4BuZMoh11tOTzgjMe-4E"
+API_KEY="exampleapiKey"
 BASE_URL="https://firestore.googleapis.com/v1/projects/$PROJECT_ID/databases/(default)/documents/$COLLECTION"
 
 CA_CERT_PATH="/CA/certs/rootCA1.cert.pem"
