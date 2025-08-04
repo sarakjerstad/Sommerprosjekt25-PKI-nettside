@@ -89,7 +89,7 @@ This bash script is used to:
 
 ### Usage
 ```bash
-./GPTscript.sh <document_id>
+./signScript.sh <document_id>
 ```
 
 Where `<document_id>` is the Firestore document ID containing the CSR.
@@ -124,7 +124,7 @@ CERT_OUTPUT_DIR="/CA/newcerts" #Route to certificate directory
 serviceAccountKey.json  # Firebase service account key (private)
 .env                    # Environment variables
 package.json            # Project dependencies and scripts
-signScript.sh           # Bash script to fetch and sign CSRs (Known as GPTscript in code, but signScript.sh is the same)
+signScript.sh           # Bash script to fetch and sign CSRs (Known as signScript in code, but signScript.sh is the same)
 ```
 
 --- 
